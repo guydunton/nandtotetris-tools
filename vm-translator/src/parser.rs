@@ -97,7 +97,7 @@ fn parse_binary_operations(i: &str) -> IResult<&str, Option<Operation>> {
 fn parse_memory_segment(i: &str) -> IResult<&str, MemorySegment> {
     map(
         alt((
-            tag("arguments"),
+            tag("argument"),
             tag("local"),
             tag("static"),
             tag("constant"),
@@ -107,7 +107,7 @@ fn parse_memory_segment(i: &str) -> IResult<&str, MemorySegment> {
             tag("temp"),
         )),
         |tag| match tag {
-            "arguments" => MemorySegment::Arguments,
+            "argument" => MemorySegment::Arguments,
             "local" => MemorySegment::Local,
             "static" => MemorySegment::Static,
             "constant" => MemorySegment::Constant,
