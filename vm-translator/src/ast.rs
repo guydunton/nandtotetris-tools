@@ -8,6 +8,9 @@ pub struct Stmt {
 pub enum Operation {
     Pop(Address),
     Push(Address),
+    Label(String),
+    ConditionalJump(String),
+    Jump(String),
     Add,
     Sub,
     Neg,
@@ -17,6 +20,7 @@ pub enum Operation {
     And,
     Or,
     Not,
+    // TODO: Implement support for if-goto, call, function & return
 }
 
 #[derive(Debug, PartialEq)]

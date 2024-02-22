@@ -19,6 +19,9 @@ pub fn translate_ast(ast: Vec<Stmt>, file_name: &str) -> Result<String, String> 
             Operation::And => translate_and(),
             Operation::Or => translate_or(),
             Operation::Not => translate_not(),
+            Operation::Label(label) => translate_label(&label),
+            Operation::ConditionalJump(label) => translate_if_goto(&label),
+            Operation::Jump(label) => translate_goto(&label),
         };
         output.push(format!("// {}", stmt.text));
         output.append(&mut asm_lines);
@@ -149,6 +152,35 @@ fn translate_not() -> Vec<String> {
     asm.push("@SP".to_owned());
     asm.push("A=M-1".to_owned());
     asm.push("M=!M".to_owned());
+
+    asm
+}
+
+fn translate_label(label: &str) -> Vec<String> {
+    let mut asm = Vec::new();
+
+    asm.push(format!("({})", label));
+
+    asm
+}
+
+fn translate_if_goto(label: &str) -> Vec<String> {
+    let mut asm = Vec::new();
+
+    asm.push("@SP".to_owned());
+    asm.push("AM=M-1".to_owned());
+    asm.push("D=M".to_owned());
+    asm.push(format!("@{}", label));
+    asm.push("D;JNE".to_owned());
+
+    asm
+}
+
+fn translate_goto(label: &str) -> Vec<String> {
+    let mut asm = Vec::new();
+
+    asm.push(format!("@{}", label));
+    asm.push("0;JMP".to_owned());
 
     asm
 }

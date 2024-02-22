@@ -1,6 +1,9 @@
 use crate::ast::{Address, MemorySegment, Operation, Stmt};
-use nom::character::complete::{line_ending, multispace0, not_line_ending, space0, space1, u32};
-use nom::combinator::all_consuming;
+use nom::character::complete::{
+    anychar, line_ending, multispace0, not_line_ending, space0, space1, u32,
+};
+use nom::combinator::{all_consuming, eof};
+use nom::multi::many_till;
 use nom::{branch::alt, bytes::complete::tag, combinator::map, sequence::tuple, IResult};
 
 pub fn parser(text: &str) -> Result<Vec<Stmt>, String> {
@@ -26,6 +29,9 @@ fn parse_operation(i: &str) -> IResult<&str, Option<Operation>> {
     alt((
         parse_push,
         parse_pop,
+        parse_label,
+        parse_goto,
+        parse_if_goto,
         parse_binary_operations,
         parse_unary_operations,
         parse_comment,
@@ -35,8 +41,15 @@ fn parse_operation(i: &str) -> IResult<&str, Option<Operation>> {
 
 fn parse_push(i: &str) -> IResult<&str, Option<Operation>> {
     map(
-        tuple((tag("push"), space1, parse_memory_segment, space1, u32)),
-        |(_, _, memory_segment, _, address)| {
+        tuple((
+            space0,
+            tag("push"),
+            space1,
+            parse_memory_segment,
+            space1,
+            u32,
+        )),
+        |(_, _, _, memory_segment, _, address)| {
             Some(Operation::Push(Address {
                 memory_segment,
                 address,
@@ -47,8 +60,15 @@ fn parse_push(i: &str) -> IResult<&str, Option<Operation>> {
 
 fn parse_pop(i: &str) -> IResult<&str, Option<Operation>> {
     map(
-        tuple((tag("pop"), space1, parse_memory_segment, space1, u32)),
-        |(_, _, memory_segment, _, address)| {
+        tuple((
+            space0,
+            tag("pop"),
+            space1,
+            parse_memory_segment,
+            space1,
+            u32,
+        )),
+        |(_, _, _, memory_segment, _, address)| {
             Some(Operation::Pop(Address {
                 memory_segment,
                 address,
@@ -57,28 +77,55 @@ fn parse_pop(i: &str) -> IResult<&str, Option<Operation>> {
     )(i)
 }
 
+fn parse_label(i: &str) -> IResult<&str, Option<Operation>> {
+    map(
+        tuple((space0, tag("label"), space1, parse_name)),
+        |(_, _, _, name)| Some(Operation::Label(name)),
+    )(i)
+}
+
+fn parse_if_goto(i: &str) -> IResult<&str, Option<Operation>> {
+    map(
+        tuple((space0, tag("if-goto"), space1, parse_name)),
+        |(_, _, _, name)| Some(Operation::ConditionalJump(name)),
+    )(i)
+}
+
+fn parse_goto(i: &str) -> IResult<&str, Option<Operation>> {
+    map(
+        tuple((space0, tag("goto"), space1, parse_name)),
+        |(_, _, _, name)| Some(Operation::Jump(name)),
+    )(i)
+}
+
 fn parse_unary_operations(i: &str) -> IResult<&str, Option<Operation>> {
-    map(alt((tag("neg"), tag("not"))), |tag| {
-        Some(match tag {
-            "neg" => Operation::Neg,
-            "not" => Operation::Not,
-            _ => panic!("Unknown unary instruction {}", tag),
-        })
-    })(i)
+    map(
+        tuple((space0, alt((tag("neg"), tag("not"))))),
+        |(_, tag)| {
+            Some(match tag {
+                "neg" => Operation::Neg,
+                "not" => Operation::Not,
+                _ => panic!("Unknown unary instruction {}", tag),
+            })
+        },
+    )(i)
 }
 
 fn parse_binary_operations(i: &str) -> IResult<&str, Option<Operation>> {
     map(
-        alt((
-            tag("add"),
-            tag("sub"),
-            tag("eq"),
-            tag("gt"),
-            tag("lt"),
-            tag("and"),
-            tag("or"),
+        tuple((
+            space0,
+            alt((
+                tag("add"),
+                tag("sub"),
+                tag("eq"),
+                tag("gt"),
+                tag("lt"),
+                tag("and"),
+                tag("or"),
+            )),
         )),
-        |operation| {
+        |(_, operation)| {
             let op = match operation {
                 "add" => Operation::Add,
                 "sub" => Operation::Sub,
@@ -120,12 +167,18 @@ fn parse_memory_segment(i: &str) -> IResult<&str, MemorySegment> {
     )(i)
 }
 
-pub fn parse_comment(i: &str) -> IResult<&str, Option<Operation>> {
+fn parse_comment(i: &str) -> IResult<&str, Option<Operation>> {
     map(tuple((space0, tag("//"), not_line_ending)), |_| None)(i)
 }
 
-pub fn parse_empty_lines(i: &str) -> IResult<&str, Option<Operation>> {
+fn parse_empty_lines(i: &str) -> IResult<&str, Option<Operation>> {
     map(all_consuming(alt((multispace0, line_ending))), |_| None)(i)
+}
+
+fn parse_name(i: &str) -> IResult<&str, String> {
+    map(many_till(anychar, alt((space1, eof))), |(text, _)| {
+        text.into_iter().collect()
+    })(i)
 }
 
 #[test]
@@ -202,5 +255,60 @@ add"#;
             operation: Operation::Not,
             text: "not".to_string()
         }]
+    );
+}
+
+#[test]
+fn test_parser_labels() {
+    assert_eq!(
+        parser("label LOOP").unwrap(),
+        vec![Stmt {
+            operation: Operation::Label("LOOP".to_owned()),
+            text: "label LOOP".to_owned()
+        }]
+    );
+
+    assert_eq!(
+        parser("\tlabel Math.test").unwrap()[0].operation,
+        Operation::Label("Math.test".to_owned())
+    );
+}
+
+#[test]
+fn test_parser_with_spaces() {
+    assert!(parser("\teq").is_ok());
+    assert!(parser("\tpop local 0").is_ok());
+    assert!(parser("\tpush constant 0").is_ok());
+    assert!(parser("\tnot").is_ok());
+}
+
+#[test]
+fn test_comment_parsing() {
+    assert!(parser("\t// This is my comment").is_ok());
+    assert_eq!(
+        parser("push constant 2 // This is a comment").unwrap(),
+        vec![Stmt {
+            operation: Operation::Push(Address {
+                memory_segment: MemorySegment::Constant,
+                address: 2,
+            }),
+            text: "push constant 2 // This is a comment".to_owned()
+        }]
+    );
+}
+
+#[test]
+fn test_if_goto_parsing() {
+    assert_eq!(
+        parser("if-goto LOOP").unwrap()[0].operation,
+        Operation::ConditionalJump("LOOP".to_owned())
+    );
+}
+
+#[test]
+fn test_goto_parsing() {
+    assert_eq!(
+        parser("goto LOOP").unwrap()[0].operation,
+        Operation::Jump("LOOP".to_owned())
     );
 }

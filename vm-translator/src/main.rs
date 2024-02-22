@@ -18,7 +18,7 @@ fn main() {
                 .required(true)
                 .value_name("FILE")
                 .value_hint(ValueHint::FilePath)
-                .help("A VM language file"),
+                .help("A VM language file or directory of files"),
         )
         .arg_required_else_help(true)
         .get_matches();
@@ -46,6 +46,7 @@ enum ErrorType {
 }
 
 fn parse_and_convert_vm(path: &str) -> Result<(), ErrorType> {
+    // TODO: Support directory of VM files
     let contents = fs::read_to_string(path).map_err(ErrorType::FileError)?;
     let statements = parser::parser(&contents).map_err(ErrorType::ParsingError)?;
 
