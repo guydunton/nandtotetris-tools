@@ -11,7 +11,7 @@ TODO - Project 8
 [x] Basic loop should now work
 [x] Implement goto
 [x] FibonacciSeries should now work
-[ ] Implement Function
+[x] Implement Function
 [ ] Implement return
 [ ] SimpleFunction should work
 [ ] Implement call

@@ -1,4 +1,4 @@
-use crate::ast::{Address, MemorySegment, Operation, Stmt};
+use crate::ast::{Address, Function, MemorySegment, Operation, Stmt};
 use nom::character::complete::{
     anychar, line_ending, multispace0, not_line_ending, space0, space1, u32,
 };
@@ -32,6 +32,7 @@ fn parse_operation(i: &str) -> IResult<&str, Option<Operation>> {
         parse_label,
         parse_goto,
         parse_if_goto,
+        parse_function,
         parse_binary_operations,
         parse_unary_operations,
         parse_comment,
@@ -95,6 +96,13 @@ fn parse_goto(i: &str) -> IResult<&str, Option<Operation>> {
     map(
         tuple((space0, tag("goto"), space1, parse_name)),
         |(_, _, _, name)| Some(Operation::Jump(name)),
+    )(i)
+}
+
+fn parse_function(i: &str) -> IResult<&str, Option<Operation>> {
+    map(
+        tuple((tag("function"), space1, parse_name, u32)),
+        |(_, _, name, num_locals)| Some(Operation::Function(Function { name, num_locals })),
     )(i)
 }
 
@@ -310,5 +318,16 @@ fn test_goto_parsing() {
     assert_eq!(
         parser("goto LOOP").unwrap()[0].operation,
         Operation::Jump("LOOP".to_owned())
+    );
+}
+
+#[test]
+fn test_function_parsing() {
+    assert_eq!(
+        parser("function myfunc 3").unwrap()[0].operation,
+        Operation::Function(Function {
+            name: "myfunc".to_owned(),
+            num_locals: 3,
+        })
     );
 }

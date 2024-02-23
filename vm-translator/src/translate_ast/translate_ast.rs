@@ -1,5 +1,5 @@
 use super::{translate_pop::translate_pop, translate_push::translate_push};
-use crate::ast::{Operation, Stmt};
+use crate::ast::{Function, Operation, Stmt};
 
 pub fn translate_ast(ast: Vec<Stmt>, file_name: &str) -> Result<String, String> {
     let mut output = vec![];
@@ -22,6 +22,7 @@ pub fn translate_ast(ast: Vec<Stmt>, file_name: &str) -> Result<String, String> 
             Operation::Label(label) => translate_label(&label),
             Operation::ConditionalJump(label) => translate_if_goto(&label),
             Operation::Jump(label) => translate_goto(&label),
+            Operation::Function(function) => translate_function(&function),
         };
         output.push(format!("// {}", stmt.text));
         output.append(&mut asm_lines);
@@ -181,6 +182,21 @@ fn translate_goto(label: &str) -> Vec<String> {
 
     asm.push(format!("@{}", label));
     asm.push("0;JMP".to_owned());
+
+    asm
+}
+
+fn translate_function(function: &Function) -> Vec<String> {
+    let mut asm = Vec::new();
+
+    asm.push(format!("({})", function.name));
+    asm.push("@LCL".to_owned());
+    asm.push("A=M".to_owned());
+
+    for _ in 0..function.num_locals {
+        asm.push("M=0".to_owned());
+        asm.push("A=A+1".to_owned());
+    }
 
     asm
 }

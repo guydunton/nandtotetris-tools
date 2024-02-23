@@ -9,6 +9,7 @@ pub enum Operation {
     Pop(Address),
     Push(Address),
     Label(String),
+    Function(Function),
     ConditionalJump(String),
     Jump(String),
     Add,
@@ -27,6 +28,12 @@ pub enum Operation {
 pub struct Address {
     pub memory_segment: MemorySegment,
     pub address: u32,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Function {
+    pub name: String,
+    pub num_locals: u32,
 }
 
 #[derive(Debug, PartialEq)]
