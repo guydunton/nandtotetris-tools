@@ -20,7 +20,7 @@ pub enum Operation {
     And,
     Or,
     Not,
-    // TODO: Implement support for if-goto, call, function & return
+    // TODO: Implement support for call, function & return
 }
 
 #[derive(Debug, PartialEq)]
