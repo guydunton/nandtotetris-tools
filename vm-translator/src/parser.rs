@@ -33,6 +33,7 @@ fn parse_operation(i: &str) -> IResult<&str, Option<Operation>> {
         parse_goto,
         parse_if_goto,
         parse_function,
+        parse_return,
         parse_binary_operations,
         parse_unary_operations,
         parse_comment,
@@ -104,6 +105,10 @@ fn parse_function(i: &str) -> IResult<&str, Option<Operation>> {
         tuple((tag("function"), space1, parse_name, u32)),
         |(_, _, name, num_locals)| Some(Operation::Function(Function { name, num_locals })),
     )(i)
+}
+
+fn parse_return(i: &str) -> IResult<&str, Option<Operation>> {
+    map(tuple((space0, tag("return"))), |_| Some(Operation::Return))(i)
 }
 
 fn parse_unary_operations(i: &str) -> IResult<&str, Option<Operation>> {
@@ -329,5 +334,13 @@ fn test_function_parsing() {
             name: "myfunc".to_owned(),
             num_locals: 3,
         })
+    );
+}
+
+#[test]
+fn test_return_parsing() {
+    assert_eq!(
+        parser("\treturn // comment").unwrap()[0].operation,
+        Operation::Return,
     );
 }

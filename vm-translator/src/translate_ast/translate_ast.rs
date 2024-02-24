@@ -23,6 +23,7 @@ pub fn translate_ast(ast: Vec<Stmt>, file_name: &str) -> Result<String, String> 
             Operation::ConditionalJump(label) => translate_if_goto(&label),
             Operation::Jump(label) => translate_goto(&label),
             Operation::Function(function) => translate_function(&function),
+            Operation::Return => translate_return(),
         };
         output.push(format!("// {}", stmt.text));
         output.append(&mut asm_lines);
@@ -197,6 +198,65 @@ fn translate_function(function: &Function) -> Vec<String> {
         asm.push("M=0".to_owned());
         asm.push("A=A+1".to_owned());
     }
+
+    asm
+}
+
+fn translate_return() -> Vec<String> {
+    let mut asm = Vec::new();
+
+    // *ARG = pop()
+    asm.push("@SP".to_owned());
+    asm.push("A=M-1".to_owned());
+    asm.push("D=M".to_owned());
+    asm.push("@ARG".to_owned());
+    asm.push("A=M".to_owned());
+    asm.push("M=D".to_owned());
+
+    // SP = ARG + 1
+    asm.push("@ARG".to_owned());
+    asm.push("D=M+1".to_owned());
+    asm.push("@SP".to_owned());
+    asm.push("M=D".to_owned());
+
+    // endFrame = LCL
+    asm.push("@LCL".to_owned());
+    asm.push("D=M".to_owned());
+    asm.push("@R13".to_owned());
+    asm.push("M=D".to_owned());
+
+    // THAT = *(endFrame - 1)
+    asm.push("@R13".to_owned());
+    asm.push("AM=M-1".to_owned());
+    asm.push("D=M".to_owned());
+    asm.push("@THAT".to_owned());
+    asm.push("M=D".to_owned());
+
+    // THIS = *(endFrame - 2)
+    asm.push("@R13".to_owned());
+    asm.push("AM=M-1".to_owned());
+    asm.push("D=M".to_owned());
+    asm.push("@THIS".to_owned());
+    asm.push("M=D".to_owned());
+
+    // ARG = *(endFrame - 3)
+    asm.push("@R13".to_owned());
+    asm.push("AM=M-1".to_owned());
+    asm.push("D=M".to_owned());
+    asm.push("@ARG".to_owned());
+    asm.push("M=D".to_owned());
+
+    // LCL = *(endFrame - 4)
+    asm.push("@R13".to_owned());
+    asm.push("AM=M-1".to_owned());
+    asm.push("D=M".to_owned());
+    asm.push("@LCL".to_owned());
+    asm.push("M=D".to_owned());
+
+    // goto retAddress
+    asm.push("@R13".to_owned());
+    asm.push("A=M-1".to_owned());
+    asm.push("0;JMP".to_owned());
 
     asm
 }

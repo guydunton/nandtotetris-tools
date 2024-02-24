@@ -10,6 +10,7 @@ pub enum Operation {
     Push(Address),
     Label(String),
     Function(Function),
+    Return,
     ConditionalJump(String),
     Jump(String),
     Add,
@@ -21,7 +22,7 @@ pub enum Operation {
     And,
     Or,
     Not,
-    // TODO: Implement support for call, function & return
+    // TODO: Implement support for call
 }
 
 #[derive(Debug, PartialEq)]
