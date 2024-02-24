@@ -195,7 +195,7 @@ fn translate_function(function: &Function) -> Vec<String> {
     asm.push("@LCL".to_owned());
     asm.push("A=M".to_owned());
 
-    for _ in 0..function.num_locals {
+    for _ in 0..function.num {
         asm.push("M=0".to_owned());
         asm.push("A=A+1".to_owned());
     }

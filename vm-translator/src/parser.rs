@@ -103,7 +103,12 @@ fn parse_goto(i: &str) -> IResult<&str, Option<Operation>> {
 fn parse_function(i: &str) -> IResult<&str, Option<Operation>> {
     map(
         tuple((tag("function"), space1, parse_name, u32)),
-        |(_, _, name, num_locals)| Some(Operation::Function(Function { name, num_locals })),
+        |(_, _, name, num_locals)| {
+            Some(Operation::Function(Function {
+                name,
+                num: num_locals,
+            }))
+        },
     )(i)
 }
 
@@ -332,7 +337,7 @@ fn test_function_parsing() {
         parser("function myfunc 3").unwrap()[0].operation,
         Operation::Function(Function {
             name: "myfunc".to_owned(),
-            num_locals: 3,
+            num: 3,
         })
     );
 }

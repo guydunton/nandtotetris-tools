@@ -34,7 +34,7 @@ pub struct Address {
 #[derive(Debug, PartialEq)]
 pub struct Function {
     pub name: String,
-    pub num_locals: u32,
+    pub num: u32,
 }
 
 #[derive(Debug, PartialEq)]
