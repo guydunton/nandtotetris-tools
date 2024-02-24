@@ -12,8 +12,8 @@ TODO - Project 8
 [x] Implement goto
 [x] FibonacciSeries should now work
 [x] Implement Function
-[ ] Implement return
-[ ] SimpleFunction should work
+[x] Implement return
+[x] SimpleFunction should work
 [ ] Implement call
 [ ] NestedCall should work ???
 [ ] Directory parsing
