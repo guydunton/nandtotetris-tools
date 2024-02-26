@@ -25,6 +25,7 @@ pub fn translate_ast(ast: Vec<Stmt>, file_name: &str) -> Result<String, String> 
             Operation::Jump(label) => translate_goto(&label),
             Operation::Function(function) => translate_function(&function),
             Operation::Return => translate_return(&mut return_counter),
+            Operation::Call(function) => translate_call(&function),
         };
         output.push(format!("// {}", stmt.text));
         output.append(&mut asm_lines);
@@ -259,4 +260,8 @@ fn translate_return(return_counter: &mut i32) -> Vec<String> {
     *return_counter += 1;
 
     asm
+}
+
+fn translate_call(_function: &Function) -> Vec<String> {
+    todo!("Not implemented");
 }

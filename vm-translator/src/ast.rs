@@ -11,6 +11,7 @@ pub enum Operation {
     Label(String),
     Function(Function),
     Return,
+    Call(Function),
     ConditionalJump(String),
     Jump(String),
     Add,
@@ -22,7 +23,6 @@ pub enum Operation {
     And,
     Or,
     Not,
-    // TODO: Implement support for call
 }
 
 #[derive(Debug, PartialEq)]
