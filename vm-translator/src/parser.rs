@@ -33,6 +33,7 @@ fn parse_operation(i: &str) -> IResult<&str, Option<Operation>> {
         parse_goto,
         parse_if_goto,
         parse_function,
+        parse_call,
         parse_return,
         parse_binary_operations,
         parse_unary_operations,
@@ -102,8 +103,8 @@ fn parse_goto(i: &str) -> IResult<&str, Option<Operation>> {
 
 fn parse_function(i: &str) -> IResult<&str, Option<Operation>> {
     map(
-        tuple((tag("function"), space1, parse_name, u32)),
-        |(_, _, name, num_locals)| {
+        tuple((space0, tag("function"), space1, parse_name, u32)),
+        |(_, _, _, name, num_locals)| {
             Some(Operation::Function(Function {
                 name,
                 num: num_locals,
@@ -114,6 +115,13 @@ fn parse_function(i: &str) -> IResult<&str, Option<Operation>> {
 
 fn parse_return(i: &str) -> IResult<&str, Option<Operation>> {
     map(tuple((space0, tag("return"))), |_| Some(Operation::Return))(i)
+}
+
+fn parse_call(i: &str) -> IResult<&str, Option<Operation>> {
+    map(
+        tuple((space0, tag("call"), space1, parse_name, u32)),
+        |(_, _, _, name, num)| Some(Operation::Call(Function { name, num })),
+    )(i)
 }
 
 fn parse_unary_operations(i: &str) -> IResult<&str, Option<Operation>> {
@@ -334,7 +342,7 @@ fn test_goto_parsing() {
 #[test]
 fn test_function_parsing() {
     assert_eq!(
-        parser("function myfunc 3").unwrap()[0].operation,
+        parser("\tfunction myfunc 3").unwrap()[0].operation,
         Operation::Function(Function {
             name: "myfunc".to_owned(),
             num: 3,
@@ -347,5 +355,16 @@ fn test_return_parsing() {
     assert_eq!(
         parser("\treturn // comment").unwrap()[0].operation,
         Operation::Return,
+    );
+}
+
+#[test]
+fn test_call_parsing() {
+    assert_eq!(
+        parser("\tcall File.MyFunc 3").unwrap()[0].operation,
+        Operation::Call(Function {
+            name: "File.MyFunc".to_owned(),
+            num: 3
+        })
     );
 }

@@ -14,10 +14,11 @@ TODO - Project 8
 - [x] Implement Function
 - [x] Implement return
 - [x] SimpleFunction should work
-- [ ] Implement call
-- [ ] NestedCall should work ???
+- [x] Implement call
+- [x] NestedCall should work ???
 - [ ] Directory parsing
 - [ ] VM translator should include Stack bootstrap code
 - [ ] VM translator should initialize all memory segments
 - [ ] FibonacciElement should work
 - [ ] StaticsTest should work
+- [ ] Get better output from compile to show label addresses. See NestedCall listing file example

@@ -7,6 +7,7 @@ pub fn translate_ast(ast: Vec<Stmt>, file_name: &str) -> Result<String, String> 
     let mut gt_counter = 0;
     let mut lt_counter = 0;
     let mut return_counter = 0;
+    let mut call_counter = 0;
     for stmt in ast {
         let mut asm_lines = match stmt.operation {
             Operation::Push(address) => translate_push(&address, file_name)?,
@@ -25,7 +26,7 @@ pub fn translate_ast(ast: Vec<Stmt>, file_name: &str) -> Result<String, String> 
             Operation::Jump(label) => translate_goto(&label),
             Operation::Function(function) => translate_function(&function),
             Operation::Return => translate_return(&mut return_counter),
-            Operation::Call(function) => translate_call(&function),
+            Operation::Call(function) => translate_call(&function, &mut call_counter),
         };
         output.push(format!("// {}", stmt.text));
         output.append(&mut asm_lines);
@@ -201,11 +202,31 @@ fn translate_function(function: &Function) -> Vec<String> {
         asm.push("A=A+1".to_owned());
     }
 
+    asm.push(format!("@{}", function.num));
+    asm.push("D=A".to_owned());
+    asm.push("@SP".to_owned());
+    asm.push("M=D+M".to_owned());
+
     asm
 }
 
 fn translate_return(return_counter: &mut i32) -> Vec<String> {
     let mut asm = Vec::new();
+
+    // endFrame = LCL
+    asm.push("@LCL".to_owned());
+    asm.push("D=M".to_owned());
+    asm.push("@R13".to_owned());
+    asm.push("M=D".to_owned());
+
+    // retAddress = *(endFrame - 5)
+    asm.push("@5".to_owned());
+    asm.push("D=A".to_owned());
+    asm.push("@R13".to_owned());
+    asm.push("A=M-D".to_owned());
+    asm.push("D=M".to_owned());
+    asm.push("@R15".to_owned());
+    asm.push("M=D".to_owned());
 
     // *ARG = pop()
     asm.push("@SP".to_owned());
@@ -219,12 +240,6 @@ fn translate_return(return_counter: &mut i32) -> Vec<String> {
     asm.push("@ARG".to_owned());
     asm.push("D=M+1".to_owned());
     asm.push("@SP".to_owned());
-    asm.push("M=D".to_owned());
-
-    // endFrame = LCL
-    asm.push("@LCL".to_owned());
-    asm.push("D=M".to_owned());
-    asm.push("@R13".to_owned());
     asm.push("M=D".to_owned());
 
     // destination = THAT
@@ -253,8 +268,8 @@ fn translate_return(return_counter: &mut i32) -> Vec<String> {
     asm.push("D;JGT".to_owned());
 
     // goto retAddress
-    asm.push("@R13".to_owned());
-    asm.push("A=M-1".to_owned());
+    asm.push("@R15".to_owned());
+    asm.push("A=M".to_owned());
     asm.push("0;JMP".to_owned());
 
     *return_counter += 1;
@@ -262,6 +277,71 @@ fn translate_return(return_counter: &mut i32) -> Vec<String> {
     asm
 }
 
-fn translate_call(_function: &Function) -> Vec<String> {
-    todo!("Not implemented");
+fn translate_call(function: &Function, call_count: &mut i32) -> Vec<String> {
+    let mut asm = Vec::new();
+
+    // push returnAddress
+    asm.push(format!("@RETURN_ADDRESS_CALL_{}", call_count));
+    asm.push("D=A".to_owned());
+    asm.push("@SP".to_owned());
+    asm.push("M=M+1".to_owned());
+    asm.push("A=M-1".to_owned());
+    asm.push("M=D".to_owned());
+
+    // push LCL
+    asm.push("@LCL".to_owned());
+    asm.push("D=M".to_owned());
+    asm.push("@SP".to_owned());
+    asm.push("M=M+1".to_owned());
+    asm.push("A=M-1".to_owned());
+    asm.push("M=D".to_owned());
+
+    // push ARG
+    asm.push("@ARG".to_owned());
+    asm.push("D=M".to_owned());
+    asm.push("@SP".to_owned());
+    asm.push("M=M+1".to_owned());
+    asm.push("A=M-1".to_owned());
+    asm.push("M=D".to_owned());
+
+    // push THIS
+    asm.push("@THIS".to_owned());
+    asm.push("D=M".to_owned());
+    asm.push("@SP".to_owned());
+    asm.push("M=M+1".to_owned());
+    asm.push("A=M-1".to_owned());
+    asm.push("M=D".to_owned());
+
+    // push THAT
+    asm.push("@THAT".to_owned());
+    asm.push("D=M".to_owned());
+    asm.push("@SP".to_owned());
+    asm.push("M=M+1".to_owned());
+    asm.push("A=M-1".to_owned());
+    asm.push("M=D".to_owned());
+
+    // ARG = SP-5-nArgs // Reposition ARG
+    asm.push("@SP".to_owned());
+    asm.push("D=M".to_owned());
+    asm.push(format!("@{}", 5 + function.num));
+    asm.push("D=D-A".to_owned());
+    asm.push("@ARG".to_owned());
+    asm.push("M=D".to_owned());
+
+    // LCL = SP // Where the new local variables go
+    asm.push("@SP".to_owned());
+    asm.push("D=M".to_owned());
+    asm.push("@LCL".to_owned());
+    asm.push("M=D".to_owned());
+
+    // goto functionName // Transfer control to the called function
+    asm.push(format!("@{}", function.name));
+    asm.push("0;JMP".to_owned());
+
+    // (return Address) // Declare a label for the return address
+    asm.push(format!("(RETURN_ADDRESS_CALL_{})", call_count));
+
+    *call_count += 1;
+
+    asm
 }
