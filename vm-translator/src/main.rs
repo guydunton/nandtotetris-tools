@@ -49,39 +49,15 @@ enum ErrorType {
 fn parse_and_convert_vm(path: &str) -> Result<(), ErrorType> {
     let file = Path::new(path);
     if file.is_file() {
-        let contents = fs::read_to_string(path).map_err(ErrorType::FileError)?;
-        let statements = parser::parser(&contents).map_err(ErrorType::ParsingError)?;
+        let asm = compile_file(file)?;
 
-        let file_name = file
-            .file_name()
-            .ok_or(ErrorType::InvalidFileName)?
-            .to_owned()
-            .into_string()
-            .map_err(|_| ErrorType::InvalidFileName)?;
-
-        let asm = translate_ast(statements, &file_name).map_err(ErrorType::TranslationError)?;
-
-        // Get the hack filename
-        let output_file_name = Path::new(path)
-            .file_stem()
-            .ok_or(ErrorType::InvalidFileName)?
-            .to_owned();
-        let mut out_file = PathBuf::from(path);
-        out_file.set_file_name(output_file_name);
+        // Create the output file path
+        let mut out_file = PathBuf::from(file);
         out_file.set_extension("asm");
 
         // Write into a file
         fs::write(out_file, asm).map_err(ErrorType::FileError)?;
     } else if file.is_dir() {
-        /*
-        if directory search directory for all *.vm files:
-            dump all the contents of the VM files into the same virtual "file"
-            add the following bootstrap code to the start:
-                SP=256
-                goto Sys.init
-
-            Then compile the file
-         */
         // Find all the .vm files
         let mut vm_files = Vec::new();
         for file in file.read_dir().unwrap() {
@@ -97,7 +73,11 @@ fn parse_and_convert_vm(path: &str) -> Result<(), ErrorType> {
         /*
         Bootstrap with the code:
             SP=256
-            goto Sys.init
+            Call Sys.init
+
+        The call will be non-functional but will consume 5 blocks (1 block == 2 bytes) from RAM. We don't need a
+        call stack but some tests rely on the stack frame being present. To emulate this we just add 5 blocks
+        to the stack & jump to Sys.init
          */
         let mut final_assembly = String::from(
             r#"@261
@@ -110,17 +90,7 @@ M=D
         );
 
         for file in vm_files.iter() {
-            let file_contents = fs::read_to_string(file).map_err(ErrorType::FileError)?;
-
-            let file_name = file
-                .file_name()
-                .ok_or(ErrorType::InvalidFileName)?
-                .to_owned()
-                .into_string()
-                .map_err(|_| ErrorType::InvalidFileName)?;
-
-            let statements = parser::parser(&file_contents).map_err(ErrorType::ParsingError)?;
-            let asm = translate_ast(statements, &file_name).map_err(ErrorType::TranslationError)?;
+            let asm = compile_file(file)?;
 
             final_assembly.push_str(&asm);
             final_assembly.push('\n');
@@ -140,4 +110,20 @@ M=D
         fs::write(out_file, final_assembly).map_err(ErrorType::FileError)?;
     }
     Ok(())
+}
+
+fn compile_file(file: &Path) -> Result<String, ErrorType> {
+    let file_contents = fs::read_to_string(file).map_err(ErrorType::FileError)?;
+
+    let file_name = file
+        .file_name()
+        .ok_or(ErrorType::InvalidFileName)?
+        .to_owned()
+        .into_string()
+        .map_err(|_| ErrorType::InvalidFileName)?;
+
+    let statements = parser::parser(&file_contents).map_err(ErrorType::ParsingError)?;
+    let asm = translate_ast(statements, &file_name).map_err(ErrorType::TranslationError)?;
+
+    Ok(asm)
 }
