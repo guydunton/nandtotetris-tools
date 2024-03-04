@@ -72,4 +72,5 @@ pub enum Stmt {
     A(Address),
     C(Command),
     Label(String),
+    Empty,
 }

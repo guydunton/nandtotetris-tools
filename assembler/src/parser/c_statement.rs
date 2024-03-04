@@ -134,7 +134,7 @@ fn parse_jump(i: &str) -> IResult<&str, Jump> {
     )(i)
 }
 
-pub fn parse_c_statement(i: &str) -> IResult<&str, Option<Stmt>> {
+pub fn parse_c_statement(i: &str) -> IResult<&str, Stmt> {
     all_consuming(alt((
         map(
             tuple((
@@ -145,11 +145,11 @@ pub fn parse_c_statement(i: &str) -> IResult<&str, Option<Stmt>> {
                 opt(parse_comment),
             )),
             |(_, dest, _, operation, _)| {
-                Some(Stmt::C(Command {
+                Stmt::C(Command {
                     dest: Some(dest),
                     operation: operation,
                     jump: None,
-                }))
+                })
             },
         ),
         map(
@@ -162,11 +162,11 @@ pub fn parse_c_statement(i: &str) -> IResult<&str, Option<Stmt>> {
                 opt(parse_comment),
             )),
             |(_, operation, _, _, jump, _)| {
-                Some(Stmt::C(Command {
+                Stmt::C(Command {
                     dest: None,
                     operation: operation,
                     jump: Some(jump),
-                }))
+                })
             },
         ),
     )))(i)
@@ -194,45 +194,45 @@ fn jump_command(operation: Operation, jump: Jump) -> Command {
 fn test_c_instruction() {
     assert_eq!(
         parse_c_statement("D=M").unwrap(),
-        ("", Some(Stmt::C(command(Dest::D, Operation::M),)))
+        ("", Stmt::C(command(Dest::D, Operation::M)))
     );
     assert_eq!(
         parse_c_statement("AMD=!D").unwrap(),
-        ("", Some(Stmt::C(command(Dest::AMD, Operation::NotD))))
+        ("", Stmt::C(command(Dest::AMD, Operation::NotD)))
     );
     assert_eq!(
         parse_c_statement("D=D-A").unwrap(),
-        ("", Some(Stmt::C(command(Dest::D, Operation::DMinusA))))
+        ("", Stmt::C(command(Dest::D, Operation::DMinusA)))
     );
     assert_eq!(
         parse_c_statement("  D=D-A").unwrap(),
-        ("", Some(Stmt::C(command(Dest::D, Operation::DMinusA))))
+        ("", Stmt::C(command(Dest::D, Operation::DMinusA)))
     );
     assert_eq!(
         parse_c_statement("D=D-A // plus a comment").unwrap(),
-        ("", Some(Stmt::C(command(Dest::D, Operation::DMinusA))))
+        ("", Stmt::C(command(Dest::D, Operation::DMinusA)))
     );
     assert_eq!(
         parse_c_statement("D=A+D").unwrap(),
-        ("", Some(Stmt::C(command(Dest::D, Operation::DPlusA))))
+        ("", Stmt::C(command(Dest::D, Operation::DPlusA)))
     );
 
     // Test a jump instruction
     assert_eq!(
         parse_c_statement("0;JMP").unwrap(),
-        ("", Some(Stmt::C(jump_command(Operation::Zero, Jump::JMP))))
+        ("", Stmt::C(jump_command(Operation::Zero, Jump::JMP)))
     );
     assert_eq!(
         parse_c_statement("D;JMP").unwrap(),
-        ("", Some(Stmt::C(jump_command(Operation::D, Jump::JMP))))
+        ("", Stmt::C(jump_command(Operation::D, Jump::JMP)))
     );
     assert_eq!(
         parse_c_statement("0; JMP").unwrap(),
-        ("", Some(Stmt::C(jump_command(Operation::Zero, Jump::JMP))))
+        ("", Stmt::C(jump_command(Operation::Zero, Jump::JMP)))
     );
     assert_eq!(
         parse_c_statement("    0; JMP").unwrap(),
-        ("", Some(Stmt::C(jump_command(Operation::Zero, Jump::JMP))))
+        ("", Stmt::C(jump_command(Operation::Zero, Jump::JMP)))
     );
 
     // Test that everything is consumed

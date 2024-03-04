@@ -12,12 +12,14 @@ use nom::{
 
 use super::Stmt;
 
-pub fn parse_comment(i: &str) -> IResult<&str, Option<Stmt>> {
-    value(None, tuple((space0, tag("//"), not_line_ending))).parse(i)
+pub fn parse_comment(i: &str) -> IResult<&str, Stmt> {
+    value(Stmt::Empty, tuple((space0, tag("//"), not_line_ending))).parse(i)
 }
 
-pub fn parse_empty_lines(i: &str) -> IResult<&str, Option<Stmt>> {
-    map(all_consuming(alt((multispace0, line_ending))), |_| None)(i)
+pub fn parse_empty_lines(i: &str) -> IResult<&str, Stmt> {
+    map(all_consuming(alt((multispace0, line_ending))), |_| {
+        Stmt::Empty
+    })(i)
 }
 
 pub fn parse_name(i: &str) -> IResult<&str, &str> {
