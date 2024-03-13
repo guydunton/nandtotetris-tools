@@ -1,0 +1,69 @@
+
+class Main {
+    function void main() {
+        var int x, y, velY, velX, spriteSlide, pos;
+        let x = 2;
+        let y = 5;
+        let spriteSlide = 0;
+        let velY = 4;
+        let velX = 1;
+
+
+        while (true) {
+            // Update
+            let spriteSlide = spriteSlide + velX;
+            if ((spriteSlide > 7) & velX > 0) {
+                let spriteSlide = 0;
+                let x = x + velX;
+            }
+            if ((spriteSlide < 0) & velX < 0) {
+                let spriteSlide = 7;
+                let x = x + velX;
+            }
+
+            let y = y + velY;
+
+            // Change the direction when anything hits the edge of the screen
+            if ((y > 205) | (y < 4)) {
+                let velY = velY * -1;
+            }
+
+            if ((x < 1) & (spriteSlide < 1) | ((x > 24) & (spriteSlide > 6))) {
+                let velX = velX * -1;
+            }
+
+            // Draw
+            do Screen.clearScreen();
+
+            let pos = y * 32 + x;
+            if (spriteSlide = 0) {
+                do Sprite.drawFrame0(pos);
+            }
+            if (spriteSlide = 1) {
+                do Sprite.drawFrame1(pos);
+            }
+            if (spriteSlide = 2) {
+                do Sprite.drawFrame2(pos);
+            }
+            if (spriteSlide = 3) {
+                do Sprite.drawFrame3(pos);
+            }
+            if (spriteSlide = 4) {
+                do Sprite.drawFrame4(pos);
+            }
+            if (spriteSlide = 5) {
+                do Sprite.drawFrame5(pos);
+            }
+            if (spriteSlide = 6) {
+                do Sprite.drawFrame6(pos);
+            }
+            if (spriteSlide = 7) {
+                do Sprite.drawFrame7(pos);
+            }
+
+            // Sleep until the next frame
+            do Sys.wait(33);
+        }
+        return;
+    }
+}
