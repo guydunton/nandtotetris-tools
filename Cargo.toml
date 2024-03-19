@@ -2,5 +2,6 @@
 resolver = "1"
 members = [
     "assembler",
-    "vm-translator"
+    "vm-translator",
+    "compiler"
 ]
