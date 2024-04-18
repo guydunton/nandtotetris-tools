@@ -4,30 +4,31 @@ A set of tools built for the [NandToTetris](https://www.nand2tetris.org/) course
 
 ## Project 10 TODO
 
-- [ ] Comments + whitespace
-- [ ] Class
-- [ ] class function
-- [ ] Variable declaration
-- [ ] Variable set (e.g. `let`)
-- [ ] Strings
-- [ ] Function calls
-- [ ] While loop
-- [ ] return
+- [x] Comments + whitespace
+- [x] Class
+- [x] class function
+- [x] Variable declaration
+- [x] Variable set (e.g. `let`)
+- [x] Strings
+- [x] Function calls
+- [x] While loop
+- [x] return
 
 - Milestone ArrayTest
 
-- [ ] Static
-- [ ] Field
-- [ ] constructor
-- [ ] Parameter lists
-- [ ] Method
-- [ ] If statement
-- [ ] If-else statement
+- [x] Static
+- [x] Field
+- [x] constructor
+- [x] Parameter lists
+- [x] Method
+- [x] If statement
+- [x] If-else statement
 
-- [ ] Directory parsing
+- [x] Directory parsing
 
 - Milestone EspressionLessSquare
 
+- [ ] Expressions with multiple parts e.g. `let i = j = 0;`
 - [ ] Complex expressions
 
 - Milestone Square
