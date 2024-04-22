@@ -28,7 +28,7 @@ A set of tools built for the [NandToTetris](https://www.nand2tetris.org/) course
 
 - Milestone EspressionLessSquare
 
-- [ ] Expressions with multiple parts e.g. `let i = j = 0;`
-- [ ] Complex expressions
+- [x] Expressions with multiple parts e.g. `let i = j = 0;`
+- [x] Complex expressions
 
 - Milestone Square

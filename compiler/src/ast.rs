@@ -21,11 +21,11 @@ pub enum BinaryOp {
     Eq,
 }
 
-// #[derive(Debug, Clone, Copy, Serialize)]
-// pub enum UnaryOp {
-//     Minus,
-//     Not,
-// }
+#[derive(Debug, Clone, Copy, Serialize, PartialEq)]
+pub enum UnaryOp {
+    Minus,
+    Not,
+}
 
 #[derive(Debug, PartialEq, Serialize)]
 pub struct VariableRef {
@@ -53,6 +53,7 @@ pub enum Constant {
 pub enum Expr {
     Constant(Constant),
     VarRef(VariableRef),
+    UnaryExpr(UnaryOp, Box<Expr>),
     MultiExpr(Box<Expr>, Vec<(BinaryOp, Expr)>),
     Call(SubroutineCall),
 }

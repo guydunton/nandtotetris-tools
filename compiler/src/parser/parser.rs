@@ -1,8 +1,8 @@
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::char;
-use nom::combinator::{all_consuming, map, map_opt, opt, value};
-use nom::error::{context, convert_error, VerboseError};
+use nom::combinator::{all_consuming, cut, map, map_opt, opt, value};
+use nom::error::{context, VerboseError};
 use nom::multi::{fold_many0, separated_list0, separated_list1};
 use nom::sequence::{delimited, pair, preceded, terminated, tuple};
 use nom::{Finish, IResult};
@@ -55,20 +55,23 @@ fn var_type(i: Span) -> IResult<Span, VariableType, VerboseError<Span>> {
 
 fn parse_var_decl(i: Span) -> IResult<Span, Statement, VerboseError<Span>> {
     let (s, _) = terminated(tag("var"), all_whitespace1)(i)?;
-    let (s, var_type) = terminated(var_type, all_whitespace1)(s)?;
+    let (s, var_type) = cut(context(
+        "variable type",
+        terminated(var_type, all_whitespace1),
+    ))(s)?;
 
-    let (s, first_var_name) = parse_identifier(s)?;
+    let (s, first_var_name) = cut(parse_identifier)(s)?;
 
-    let (s, other_vars) = fold_many0(
+    let (s, other_vars) = cut(fold_many0(
         tuple((char(','), all_whitespace0, parse_identifier)),
         Vec::new,
         |mut acc: Vec<String>, (_, _, var_name)| {
             acc.push(var_name);
             acc
         },
-    )(s)?;
+    ))(s)?;
 
-    let (s, _) = preceded(all_whitespace0, char(';'))(s)?;
+    let (s, _) = cut(preceded(all_whitespace0, char(';')))(s)?;
 
     let mut variables = Vec::with_capacity(other_vars.len() + 1);
     variables.push(Variable {
@@ -107,10 +110,15 @@ fn parse_else(i: Span) -> IResult<Span, Vec<Statement>, VerboseError<Span>> {
 
 fn parse_if(i: Span) -> IResult<Span, Statement, VerboseError<Span>> {
     let (s, _) = tuple((tag("if"), all_whitespace0, char('('), all_whitespace0))(i)?;
-    let (s, condition) = parse_expression(s)?;
-    let (s, _) = tuple((all_whitespace0, char(')'), all_whitespace0, char('{')))(s)?;
-    let (s, if_body) = parse_statements(s)?;
-    let (s, _) = char('}')(s)?;
+    let (s, condition) = context("if condition", cut(parse_expression))(s)?;
+    let (s, _) = cut(tuple((
+        all_whitespace0,
+        char(')'),
+        all_whitespace0,
+        char('{'),
+    )))(s)?;
+    let (s, if_body) = cut(parse_statements)(s)?;
+    let (s, _) = cut(char('}'))(s)?;
     let (s, else_body) = opt(parse_else)(s)?;
 
     Ok((
@@ -125,14 +133,14 @@ fn parse_if(i: Span) -> IResult<Span, Statement, VerboseError<Span>> {
 
 fn parse_let(i: Span) -> IResult<Span, Statement, VerboseError<Span>> {
     let (s, _) = terminated(tag("let"), all_whitespace1)(i)?;
-    let (s, identifier) = alt((
+    let (s, identifier) = cut(alt((
         parse_indexed_identifier,
         map(parse_identifier, |name| VariableRef { name, index: None }),
-    ))(s)?;
+    )))(s)?;
 
-    let (s, _) = delimited(all_whitespace0, char('='), all_whitespace0)(s)?;
-    let (s, expression) = parse_expression(s)?;
-    let (s, _) = preceded(all_whitespace0, char(';'))(s)?;
+    let (s, _) = cut(delimited(all_whitespace0, char('='), all_whitespace0))(s)?;
+    let (s, expression) = cut(parse_expression)(s)?;
+    let (s, _) = cut(preceded(all_whitespace0, char(';')))(s)?;
 
     Ok((
         s,
@@ -167,18 +175,6 @@ fn parse_while(i: Span) -> IResult<Span, Statement, VerboseError<Span>> {
 }
 
 fn parse_statements(i: Span) -> IResult<Span, Vec<Statement>, VerboseError<Span>> {
-    // many0(delimited(
-    //     all_whitespace0,
-    //     alt((
-    //         parse_var_decl,
-    //         parse_let,
-    //         parse_while,
-    //         parse_if,
-    //         parse_do,
-    //         parse_return,
-    //     )),
-    //     all_whitespace0,
-    // ))(i)
     let (s, _) = all_whitespace0(i)?;
     let (s, statements) = context(
         "statement separated list",
@@ -308,14 +304,14 @@ pub fn parse_jack(files: Vec<FileInput>) -> Result<Vec<(Class, String)>, String>
         let input = Span::new(&file.contents);
         let output = all_consuming(parse_class)(input);
 
-        match output {
+        match output.finish() {
             Ok(compiled_class) => result.push((compiled_class.1, file.filename)),
-            Err(span) => {
+            Err(e) => {
                 return Err(format!(
                     "Failed to compile with error in file {}:\n{}",
                     file.filename,
-                    span.to_string()
-                ))
+                    e.to_string()
+                ));
             }
         }
     }
