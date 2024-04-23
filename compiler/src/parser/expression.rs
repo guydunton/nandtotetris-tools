@@ -66,7 +66,22 @@ fn parse_operation(i: Span) -> IResult<Span, Expr, VerboseError<Span>> {
     let (s, operator) = delimited(all_whitespace0, parse_binary_operator, all_whitespace0)(s)?;
     let (s, rhs) = parse_expression(s)?;
 
-    Ok((s, Expr::MultiExpr(Box::new(lhs), vec![(operator, rhs)])))
+    Ok((
+        s,
+        Expr::BinaryExpr {
+            lhs: Box::new(lhs),
+            op: operator,
+            rhs: Box::new(rhs),
+        },
+    ))
+}
+
+fn parse_brackets(i: Span) -> IResult<Span, Expr, VerboseError<Span>> {
+    let (s, _) = char('(')(i)?;
+    let (s, expr) = cut(context("parsing bracketed expression", parse_expression))(s)?;
+    let (s, _) = cut(char(')'))(s)?;
+
+    Ok((s, Expr::BracketedExpr(Box::new(expr))))
 }
 
 fn parse_unary_op(i: Span) -> IResult<Span, Expr, VerboseError<Span>> {
@@ -106,6 +121,7 @@ fn parse_sub_expression(i: Span) -> IResult<Span, Expr, VerboseError<Span>> {
     context(
         "expression",
         alt((
+            parse_brackets,
             parse_unary_op,
             map(parse_subroutine_call, |details| Expr::Call(details)),
             parse_parentheses,
@@ -122,6 +138,7 @@ pub fn parse_expression(i: Span) -> IResult<Span, Expr, VerboseError<Span>> {
     context(
         "expression",
         alt((
+            parse_brackets,
             parse_unary_op,
             parse_operation,
             map(parse_subroutine_call, |details| Expr::Call(details)),
@@ -153,25 +170,27 @@ fn test_expression() {
     );
     assert_eq!(
         expr(parse_expression(span("i < 3"))),
-        Expr::MultiExpr(
-            Box::new(Expr::VarRef(VariableRef {
+        Expr::BinaryExpr {
+            lhs: Box::new(Expr::VarRef(VariableRef {
                 name: "i".to_owned(),
                 index: None
             })),
-            vec![(crate::ast::BinaryOp::Lt, Expr::Constant(Constant::Int(3)))]
-        )
+            op: crate::ast::BinaryOp::Lt,
+            rhs: Box::new(Expr::Constant(Constant::Int(3)))
+        }
     );
     assert_eq!(
         expr(parse_expression(span("a[ i + 1 ]"))),
         Expr::VarRef(VariableRef {
             name: "a".to_owned(),
-            index: Some(Box::new(Expr::MultiExpr(
-                Box::new(Expr::VarRef(VariableRef {
+            index: Some(Box::new(Expr::BinaryExpr {
+                lhs: Box::new(Expr::VarRef(VariableRef {
                     name: "i".to_owned(),
                     index: None
                 })),
-                vec![(BinaryOp::Plus, Expr::Constant(Constant::Int(1)))]
-            ))),
+                op: BinaryOp::Plus,
+                rhs: Box::new(Expr::Constant(Constant::Int(1)))
+            })),
         })
     );
     assert_eq!(
@@ -198,19 +217,17 @@ fn test_expression() {
         expr(parse_expression(span("~(b | c)"))),
         Expr::UnaryExpr(
             UnaryOp::Not,
-            Box::new(Expr::MultiExpr(
-                Box::new(Expr::VarRef(VariableRef {
+            Box::new(Expr::BracketedExpr(Box::new(Expr::BinaryExpr {
+                lhs: Box::new(Expr::VarRef(VariableRef {
                     name: "b".to_owned(),
                     index: None
                 })),
-                vec![(
-                    BinaryOp::Or,
-                    Expr::VarRef(VariableRef {
-                        name: "c".to_owned(),
-                        index: None
-                    })
-                )]
-            ))
+                op: BinaryOp::Or,
+                rhs: Box::new(Expr::VarRef(VariableRef {
+                    name: "c".to_owned(),
+                    index: None
+                }))
+            })))
         )
     );
 }

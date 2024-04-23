@@ -54,7 +54,12 @@ pub enum Expr {
     Constant(Constant),
     VarRef(VariableRef),
     UnaryExpr(UnaryOp, Box<Expr>),
-    MultiExpr(Box<Expr>, Vec<(BinaryOp, Expr)>),
+    BinaryExpr {
+        lhs: Box<Expr>,
+        op: BinaryOp,
+        rhs: Box<Expr>,
+    },
+    BracketedExpr(Box<Expr>),
     Call(SubroutineCall),
 }
 
