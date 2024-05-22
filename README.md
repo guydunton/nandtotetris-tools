@@ -5,12 +5,12 @@ A set of tools built for the [NandToTetris](https://www.nand2tetris.org/) course
 ## Project 11 plan
 
 - Seven - prints 7 on the screen
-  - [ ] Arithmetic using constants only
-  - [ ] do statement
-  - [ ] return statement
+  - [x] Arithmetic using constants only
+  - [x] do statement
+  - [x] return statement
 - ConvertToBin - Convert a decimal from RAM[8000] to binary & stores values in RAM[8001-8016]
-  - [ ] expressions (without arrays or method calls)
-  - [ ] procedural constructs: if, while, do, let & return
+  - [x] procedural constructs: if, while, do, let & return
+  - [x] expressions (without arrays or method calls)
 - Square - Move a square around
   - [ ] constructors
   - [ ] methods

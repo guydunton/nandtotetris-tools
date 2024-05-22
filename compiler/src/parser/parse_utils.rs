@@ -18,13 +18,7 @@ pub fn parse_indexed_identifier(i: Span) -> IResult<Span, VariableRef, VerboseEr
     let (s, sub_expr) = parse_expression(s)?;
     let (s, _) = delimited(all_whitespace0, char(']'), all_whitespace0)(s)?;
 
-    Ok((
-        s,
-        VariableRef {
-            name,
-            index: Some(Box::new(sub_expr)),
-        },
-    ))
+    Ok((s, VariableRef::new_with_index(&name, sub_expr)))
 }
 
 pub fn parse_identifier(i: Span) -> IResult<Span, String, VerboseError<Span>> {
@@ -86,11 +80,9 @@ fn parse_function_call(i: Span) -> IResult<Span, SubroutineCall, VerboseError<Sp
 
     Ok((
         s,
-        SubroutineCall {
-            type_name: None,
-            subroutine_name,
-            parameters,
-        },
+        SubroutineCall::new()
+            .name(&subroutine_name)
+            .add_parameters(parameters),
     ))
 }
 
@@ -103,11 +95,10 @@ fn parse_method_call(i: Span) -> IResult<Span, SubroutineCall, VerboseError<Span
 
     Ok((
         s,
-        SubroutineCall {
-            type_name: Some(type_name),
-            subroutine_name,
-            parameters,
-        },
+        SubroutineCall::new()
+            .name(&subroutine_name)
+            .set_type(&type_name)
+            .add_parameters(parameters),
     ))
 }
 

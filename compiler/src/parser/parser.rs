@@ -15,8 +15,9 @@ use super::parse_utils::{
 use super::Span;
 
 use crate::ast::{
-    Class, ClassVariable, ClassVariableVisibility, IfDetails, LetDetails, ReturnType, Statement,
-    Subroutine, SubroutineType, Variable, VariableRef, VariableType, WhileDetails,
+    Class, ClassVariable, ClassVariableVisibility, CompiledClass, IfDetails, LetDetails,
+    ReturnType, Statement, Subroutine, SubroutineType, Variable, VariableRef, VariableType,
+    WhileDetails, AST,
 };
 
 pub struct FileInput {
@@ -73,20 +74,14 @@ fn parse_var_decl(i: Span) -> IResult<Span, Statement, VerboseError<Span>> {
 
     let (s, _) = cut(preceded(all_whitespace0, char(';')))(s)?;
 
-    let mut variables = Vec::with_capacity(other_vars.len() + 1);
-    variables.push(Variable {
-        identifier: first_var_name,
-        var_type: var_type.clone(),
-    });
+    let mut var_details =
+        Statement::var().add_var(Variable::new(&first_var_name, var_type.clone()));
 
-    other_vars.into_iter().for_each(|var| {
-        variables.push(Variable {
-            identifier: var,
-            var_type: var_type.clone(),
-        });
-    });
+    for var in other_vars {
+        var_details = var_details.add_var(Variable::new(&var, var_type.clone()));
+    }
 
-    Ok((s, Statement::VarDecl(variables)))
+    Ok((s, var_details.as_statement()))
 }
 
 fn parse_return(i: Span) -> IResult<Span, Statement, VerboseError<Span>> {
@@ -135,7 +130,7 @@ fn parse_let(i: Span) -> IResult<Span, Statement, VerboseError<Span>> {
     let (s, _) = terminated(tag("let"), all_whitespace1)(i)?;
     let (s, identifier) = cut(alt((
         parse_indexed_identifier,
-        map(parse_identifier, |name| VariableRef { name, index: None }),
+        map(parse_identifier, |name| VariableRef::new(&name)),
     )))(s)?;
 
     let (s, _) = cut(delimited(all_whitespace0, char('='), all_whitespace0))(s)?;
@@ -199,13 +194,7 @@ fn parse_parameter(i: Span) -> IResult<Span, Variable, VerboseError<Span>> {
     let (s, var_type) = terminated(var_type, all_whitespace1)(i)?;
     let (s, identifier) = parse_identifier(s)?;
 
-    Ok((
-        s,
-        Variable {
-            identifier,
-            var_type,
-        },
-    ))
+    Ok((s, Variable::new(&identifier, var_type)))
 }
 
 fn parse_function(i: Span) -> IResult<Span, Subroutine, VerboseError<Span>> {
@@ -233,13 +222,11 @@ fn parse_function(i: Span) -> IResult<Span, Subroutine, VerboseError<Span>> {
 
     Ok((
         s,
-        Subroutine {
-            identifier: function_name,
-            return_type,
-            parameters,
-            statements,
-            subroutine_type,
-        },
+        Subroutine::new(&function_name)
+            .return_type(return_type)
+            .subroutine_type(subroutine_type)
+            .add_parameters(parameters)
+            .add_statements(statements),
     ))
 }
 
@@ -290,22 +277,23 @@ fn parse_class(i: Span) -> IResult<Span, Class, VerboseError<Span>> {
 
     Ok((
         s,
-        Class {
-            identifier,
-            subroutines,
-            variables: variables.into_iter().flatten().collect(),
-        },
+        Class::new(&identifier)
+            .add_subroutines(subroutines)
+            .add_variables(variables.into_iter().flatten().collect()),
     ))
 }
 
-pub fn parse_jack(files: Vec<FileInput>) -> Result<Vec<(Class, String)>, String> {
+pub fn parse_jack(files: Vec<FileInput>) -> Result<AST, String> {
     let mut result = Vec::with_capacity(files.len());
     for file in files {
         let input = Span::new(&file.contents);
         let output = all_consuming(parse_class)(input);
 
         match output.finish() {
-            Ok(compiled_class) => result.push((compiled_class.1, file.filename)),
+            Ok(compiled_class) => result.push(CompiledClass {
+                class: compiled_class.1,
+                source_filename: file.filename,
+            }),
             Err(e) => {
                 return Err(format!(
                     "Failed to compile with error in file {}:\n{}",
@@ -315,5 +303,5 @@ pub fn parse_jack(files: Vec<FileInput>) -> Result<Vec<(Class, String)>, String>
             }
         }
     }
-    Ok(result)
+    Ok(AST { classes: result })
 }
