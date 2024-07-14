@@ -135,9 +135,71 @@ impl IfDetails {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Default)]
 pub struct SubroutineCall {
-    type_name: Option<String>,
+    target_name: Option<String>,
     subroutine_name: String,
     parameters: Vec<Expr>,
+}
+
+impl SubroutineCall {
+    pub fn new() -> Self {
+        SubroutineCall {
+            ..Default::default()
+        }
+    }
+
+    pub fn as_statement(self) -> Statement {
+        Statement::Do(self)
+    }
+
+    pub fn as_expr(self) -> Expr {
+        Expr::Call(self)
+    }
+
+    pub fn set_target(mut self, target_name: &str) -> Self {
+        self.target_name = Some(target_name.to_owned());
+        self
+    }
+
+    pub fn get_target(&self) -> &Option<String> {
+        &self.target_name
+    }
+
+    pub fn get_name(&self) -> &str {
+        &self.subroutine_name
+    }
+
+    pub fn name(mut self, name: &str) -> Self {
+        self.subroutine_name = name.to_owned();
+        self
+    }
+
+    pub fn add_parameter(mut self, expr: Expr) -> Self {
+        self.parameters.push(expr);
+        self
+    }
+
+    pub fn add_parameters(mut self, parameters: Vec<Expr>) -> Self {
+        parameters
+            .into_iter()
+            .for_each(|parameter| self.parameters.push(parameter));
+        self
+    }
+
+    pub fn name_as_string(&self) -> String {
+        let type_portion = self
+            .target_name
+            .clone()
+            .map(|type_name| format!("{}.", type_name));
+        format!(
+            "{}{}",
+            type_portion.unwrap_or_default(),
+            self.subroutine_name
+        )
+    }
+
+    pub fn get_parameters(&self) -> &Vec<Expr> {
+        &self.parameters
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -163,60 +225,6 @@ impl VarDeclDetails {
 
     pub fn as_statement(self) -> Statement {
         Statement::VarDecl(self)
-    }
-}
-
-impl SubroutineCall {
-    pub fn new() -> Self {
-        SubroutineCall {
-            ..Default::default()
-        }
-    }
-
-    pub fn as_statement(self) -> Statement {
-        Statement::Do(self)
-    }
-
-    pub fn as_expr(self) -> Expr {
-        Expr::Call(self)
-    }
-
-    pub fn set_type(mut self, type_name: &str) -> Self {
-        self.type_name = Some(type_name.to_owned());
-        self
-    }
-
-    pub fn name(mut self, name: &str) -> Self {
-        self.subroutine_name = name.to_owned();
-        self
-    }
-
-    pub fn add_parameter(mut self, expr: Expr) -> Self {
-        self.parameters.push(expr);
-        self
-    }
-
-    pub fn add_parameters(mut self, parameters: Vec<Expr>) -> Self {
-        parameters
-            .into_iter()
-            .for_each(|parameter| self.parameters.push(parameter));
-        self
-    }
-
-    pub fn name_as_string(&self) -> String {
-        let type_portion = self
-            .type_name
-            .clone()
-            .map(|type_name| format!("{}.", type_name));
-        format!(
-            "{}{}",
-            type_portion.unwrap_or_default(),
-            self.subroutine_name
-        )
-    }
-
-    pub fn get_parameters(&self) -> &Vec<Expr> {
-        &self.parameters
     }
 }
 

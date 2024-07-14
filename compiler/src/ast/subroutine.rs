@@ -3,7 +3,7 @@ use serde::Serialize;
 
 use super::{statement::Statement, variables::Variable};
 
-#[derive(Debug, Clone, Copy, Serialize, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Default, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum SubroutineType {
     #[default]

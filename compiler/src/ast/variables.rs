@@ -12,6 +12,18 @@ pub enum VariableType {
     ClassName(String),
 }
 
+impl ToString for VariableType {
+    fn to_string(&self) -> String {
+        match self {
+            VariableType::Array => "Array".to_owned(),
+            VariableType::Int => "Int".to_owned(),
+            VariableType::Char => "Char".to_owned(),
+            VariableType::Boolean => "Bool".to_owned(),
+            VariableType::ClassName(name) => name.clone(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct Variable {
     identifier: String,

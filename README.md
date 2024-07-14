@@ -12,9 +12,9 @@ A set of tools built for the [NandToTetris](https://www.nand2tetris.org/) course
   - [x] procedural constructs: if, while, do, let & return
   - [x] expressions (without arrays or method calls)
 - Square - Move a square around
-  - [ ] constructors
-  - [ ] methods
-  - [ ] expressions that include method calls
+  - [x] constructors
+  - [x] methods
+  - [x] expressions that include method calls
 - Average - Read a value & output the average
   - [ ] arrays
   - [ ] strings

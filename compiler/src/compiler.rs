@@ -1,5 +1,8 @@
 use crate::{
-    ast::{BinaryOp, Class, Constant, Expr, Statement, Subroutine, UnaryOp, VariableRef, AST},
+    ast::{
+        BinaryOp, Class, ClassVariableVisibility, Constant, Expr, Statement, Subroutine,
+        SubroutineType, UnaryOp, AST,
+    },
     symbol_table::SymbolTable,
 };
 
@@ -74,10 +77,28 @@ pub fn translate_ast(ast: &AST) -> Result<Vec<CompilationOutput>, CompilationErr
     Ok(output)
 }
 
-fn compile_class(class: &Class) -> Result<Vec<String>, CompilationError> {
+pub fn compile_class(class: &Class) -> Result<Vec<String>, CompilationError> {
     let mut output = Vec::new();
 
     let mut context = CompilationContext::new(class.get_name());
+
+    // Find all the local variables
+    for variable in class.variables() {
+        match variable.get_visibility() {
+            ClassVariableVisibility::Field => {
+                context.symbol_table().add_field(
+                    &variable.get_identifier(),
+                    &variable.get_var_type().to_string(),
+                );
+            }
+            ClassVariableVisibility::Static => {
+                context.symbol_table().add_static(
+                    &variable.get_identifier(),
+                    &variable.get_var_type().to_string(),
+                );
+            }
+        }
+    }
 
     for subroutine in class.subroutines() {
         context.symbol_table().create_scope();
@@ -94,11 +115,16 @@ fn compile_subroutines(
     subroutine: &Subroutine,
     context: &mut CompilationContext,
 ) -> Result<(), CompilationError> {
+    if subroutine.get_subroutine_type() == SubroutineType::Method {
+        let class_name = context.class_name.clone();
+        context.symbol_table().add_argument("this", &class_name);
+    }
+
     // create the symbol table for the subroutine
     for parameter in subroutine.get_parameters() {
         context.symbol_table().add_argument(
             parameter.get_identifier(),
-            &format!("{:?}", parameter.get_type()),
+            &format!("{}", parameter.get_type().to_string()),
         );
     }
 
@@ -115,6 +141,23 @@ fn compile_subroutines(
         subroutine.get_name(),
         num_args
     ));
+
+    match subroutine.get_subroutine_type() {
+        SubroutineType::Constructor => {
+            // Count the number of class fields
+            output.push(format!(
+                "push constant {}",
+                context.symbol_table().count_fields()
+            ));
+            output.push("call Memory.alloc 1".to_owned());
+            output.push("pop pointer 0".to_owned());
+        }
+        SubroutineType::Method => {
+            output.push("push argument 0".to_owned());
+            output.push("pop pointer 0".to_owned());
+        }
+        _ => {}
+    }
 
     for statement in subroutine.get_statements() {
         compile_statement(output, statement, context)?;
@@ -189,11 +232,34 @@ fn compile_statement(
                 compile_expression(output, parameter, context)?;
             }
 
-            output.push(format!(
-                "call {} {}",
-                call.name_as_string(),
-                call.get_parameters().len()
-            ));
+            let mut param_count = call.get_parameters().len();
+            let mut call_text = call.name_as_string();
+
+            // Check if the subroutine call is a method call or a function call
+            // main.draw() <- if main is variable then this is method call otherwise it's a function call
+            // draw() <- must be method call
+            match call.get_target() {
+                Some(target_name) => match context.symbol_table().find_variable(&target_name) {
+                    Some(variable) => {
+                        output.push(format!(
+                            "push {} {}",
+                            variable.scope().as_segment(),
+                            variable.index()
+                        ));
+
+                        param_count += 1;
+                        call_text = format!("{}.{}", variable.var_type(), call.get_name());
+                    }
+                    None => {}
+                },
+                None => {
+                    output.push("push pointer 0".to_owned());
+                    param_count += 1;
+                    call_text = format!("{}.{}", context.class_name, call.get_name());
+                }
+            };
+
+            output.push(format!("call {} {}", call_text, param_count,));
 
             // We aren't doing anything with the response so pop it
             output.push("pop temp 0".to_owned());
@@ -258,7 +324,7 @@ fn compile_expression(
             }
             crate::ast::KeywordConstant::False => output.push("push constant 0".to_owned()),
             crate::ast::KeywordConstant::Null => output.push("push constant 0".to_owned()),
-            crate::ast::KeywordConstant::This => todo!(),
+            crate::ast::KeywordConstant::This => output.push("push pointer 0".to_owned()),
         },
         Expr::VarRef(var) => {
             if var.get_index().is_some() {
@@ -305,15 +371,35 @@ fn compile_expression(
         }
         Expr::BracketedExpr(expr) => compile_expression(output, expr, context)?,
         Expr::Call(call) => {
+            let mut param_count = call.get_parameters().len();
+            let mut call_text = call.name_as_string();
+
+            // If the call is a method then we need to push this
+            match call.get_target() {
+                Some(target_name) => match context.symbol_table().find_variable(&target_name) {
+                    Some(variable) => {
+                        output.push(format!(
+                            "push {} {}",
+                            variable.scope().as_segment(),
+                            variable.index()
+                        ));
+                        param_count += 1;
+                        call_text = format!("{}.{}", variable.var_type(), call.get_name());
+                    }
+                    None => {}
+                },
+                None => {
+                    output.push("push pointer 0".to_owned());
+                    param_count += 1;
+                    call_text = format!("{}.{}", context.class_name, call.get_name());
+                }
+            };
+
             for parameter in call.get_parameters() {
                 compile_expression(output, parameter, context)?;
             }
 
-            output.push(format!(
-                "call {} {}",
-                call.name_as_string(),
-                call.get_parameters().len()
-            ));
+            output.push(format!("call {} {}", call_text, param_count));
         }
     }
 
@@ -342,503 +428,11 @@ fn find_var_decl_in_statement_tree(statement: &Statement, symbol_table: &mut Sym
         Statement::Return(_) => {}
         Statement::VarDecl(var_details) => {
             for var in var_details.get_variables() {
-                symbol_table.add_local(var.get_identifier(), &format!("{:?}", var.get_type()));
+                symbol_table.add_local(
+                    var.get_identifier(),
+                    &format!("{}", var.get_type().to_string()),
+                );
             }
         }
     }
-}
-
-#[test]
-fn test_compile_function() {
-    let class = Class::new("Main").add_subroutine(
-        Subroutine::new("main")
-            .add_statement(
-                Statement::do_statement()
-                    .set_type("Output")
-                    .name("printInt")
-                    .add_parameter(Expr::int(3))
-                    .as_statement(),
-            )
-            .add_statement(Statement::return_void()),
-    );
-
-    let result = compile_class(&class).unwrap();
-
-    let expected: Vec<String> = r#"
-        function Main.main 0
-        push constant 3
-        call Output.printInt 1
-        pop temp 0
-        push constant 0
-        return
-    "#
-    .trim()
-    .split('\n')
-    .map(|s| s.trim().to_owned())
-    .collect();
-
-    assert_eq!(result, expected);
-}
-
-#[test]
-fn test_compile_simple_expression() {
-    use crate::ast::BinaryOp;
-
-    // 1 + 2
-    let expression = Expr::binary_op(Expr::int(1), BinaryOp::Plus, Expr::int(2));
-
-    let class = Class::new("Main").add_subroutine(
-        Subroutine::new("main")
-            .add_statement(
-                Statement::do_statement()
-                    .set_type("Output")
-                    .name("printInt")
-                    .add_parameter(expression)
-                    .as_statement(),
-            )
-            .add_statement(Statement::return_void()),
-    );
-
-    let result = compile_class(&class).unwrap();
-
-    let expected: Vec<String> = r#"
-        push constant 1
-        push constant 2
-        add
-    "#
-    .trim()
-    .split('\n')
-    .map(|s| s.trim().to_owned())
-    .collect();
-
-    assert!(contains_commands(&result, &expected));
-}
-
-#[test]
-fn test_compile_complex_expression() {
-    use crate::ast::BinaryOp;
-
-    // 1 + (2 * 3)
-    let expression = Expr::binary_op(
-        Expr::int(1),
-        BinaryOp::Plus,
-        Expr::brackets(Expr::binary_op(Expr::int(2), BinaryOp::Mult, Expr::int(3))),
-    );
-
-    let class = Class::new("Main").add_subroutine(
-        Subroutine::new("main")
-            .add_statement(
-                Statement::do_statement()
-                    .set_type("Output")
-                    .name("printInt")
-                    .add_parameter(expression)
-                    .as_statement(),
-            )
-            .add_statement(Statement::return_void()),
-    );
-
-    let result = compile_class(&class).unwrap();
-
-    let expected: Vec<String> = r#"
-        push constant 1
-        push constant 2
-        push constant 3
-        call Math.multiply 2
-        add
-    "#
-    .trim()
-    .split('\n')
-    .map(|s| s.trim().to_owned())
-    .collect();
-
-    assert!(contains_commands(&result, &expected));
-}
-
-#[test]
-fn compile_var_statement() {
-    let class = Class::new("Main").add_subroutine(
-        Subroutine::new("main")
-            .add_statement(
-                Statement::var()
-                    .add_var(crate::ast::Variable::new(
-                        "value",
-                        crate::ast::VariableType::Int,
-                    ))
-                    .as_statement(),
-            )
-            .add_statement(Statement::return_void()),
-    );
-
-    let result = compile_class(&class).unwrap();
-    let expected: Vec<String> = r#"
-        function Main.main 1
-        push constant 0
-        return
-    "#
-    .trim()
-    .split('\n')
-    .map(|s| s.trim().to_owned())
-    .collect();
-
-    assert_eq!(result, expected);
-}
-
-#[test]
-fn compile_let() {
-    use crate::ast::{VariableRef, VariableType};
-    let class = Class::new("Main").add_subroutine(
-        Subroutine::new("main")
-            .add_statement(
-                Statement::var()
-                    .add_var(crate::ast::Variable::new("value", VariableType::Int))
-                    .as_statement(),
-            )
-            .add_statement(
-                Statement::let_statement()
-                    .id(VariableRef::new("value"))
-                    .value(Expr::int(3))
-                    .as_statement(),
-            )
-            .add_statement(Statement::return_void()),
-    );
-
-    let result = compile_class(&class).unwrap();
-    let expected: Vec<String> = r#"
-        function Main.main 1
-        push constant 3
-        pop local 0
-        push constant 0
-        return
-    "#
-    .trim()
-    .split('\n')
-    .map(|s| s.trim().to_owned())
-    .collect();
-
-    assert_eq!(result, expected);
-}
-
-#[test]
-fn compile_var_used_in_do_statement() {
-    use crate::ast::{Variable, VariableRef, VariableType};
-
-    let class = Class::new("Main").add_subroutine(
-        Subroutine::new("main")
-            .add_statement(
-                Statement::var()
-                    .add_var(Variable::new("value", VariableType::Int))
-                    .as_statement(),
-            )
-            .add_statement(
-                Statement::let_statement()
-                    .id(VariableRef::new("value"))
-                    .value(Expr::int(3))
-                    .as_statement(),
-            )
-            .add_statement(
-                Statement::do_statement()
-                    .set_type("Output")
-                    .name("printInt")
-                    .add_parameter(Expr::var(VariableRef::new("value")))
-                    .as_statement(),
-            )
-            .add_statement(Statement::return_void()),
-    );
-
-    let result = compile_class(&class).unwrap();
-
-    let expected: Vec<String> = r#"
-        push constant 3
-        pop local 0
-        push local 0
-        call Output.printInt 1
-    "#
-    .trim()
-    .split('\n')
-    .map(|s| s.trim().to_owned())
-    .collect();
-
-    assert!(contains_commands(&result, &expected));
-}
-
-#[test]
-fn compile_unary_operation_test() {
-    let class = Class::new("Main").add_subroutine(
-        Subroutine::new("main")
-            .add_statement(
-                Statement::do_statement()
-                    .set_type("Output")
-                    .name("printInt")
-                    .add_parameter(Expr::unary_op(UnaryOp::Minus, Expr::int(3)))
-                    .as_statement(),
-            )
-            .add_statement(Statement::return_void()),
-    );
-
-    let result = compile_class(&class).unwrap();
-
-    let expected: Vec<String> = r#"
-        push constant 3
-        neg
-        call Output.printInt 1
-    "#
-    .trim()
-    .split('\n')
-    .map(|s| s.trim().to_owned())
-    .collect();
-
-    assert!(contains_commands(&result, &expected));
-}
-
-#[test]
-fn compile_multiple_functions() {
-    use crate::ast::{Variable, VariableRef, VariableType};
-
-    let var_and_set: Vec<Statement> = vec![
-        Statement::var()
-            .add_var(Variable::new("value", VariableType::Int))
-            .as_statement(),
-        Statement::let_statement()
-            .id(VariableRef::new("value"))
-            .value(Expr::int(3))
-            .as_statement(),
-    ];
-
-    let class = Class::new("Main")
-        .add_subroutine(
-            Subroutine::new("main")
-                .add_statements(var_and_set.clone())
-                .add_statement(
-                    Statement::do_statement()
-                        .set_type("Main")
-                        .name("second")
-                        .add_parameter(Expr::var(VariableRef::new("value")))
-                        .as_statement(),
-                )
-                .add_statement(Statement::return_void()),
-        )
-        .add_subroutine(
-            Subroutine::new("second")
-                .add_statements(var_and_set)
-                .add_statement(Statement::return_expr(Expr::var(VariableRef::new("value")))),
-        );
-
-    let result = compile_class(&class).unwrap();
-
-    let expected: Vec<String> = r#"
-        function Main.main 1
-        push constant 3
-        pop local 0
-        push local 0
-        call Main.second 1
-        pop temp 0
-        push constant 0
-        return
-        function Main.second 1
-        push constant 3
-        pop local 0
-        push local 0
-        return
-    "#
-    .trim()
-    .split('\n')
-    .map(|s| s.trim().to_owned())
-    .collect();
-
-    assert_eq!(result, expected);
-}
-
-#[test]
-fn compile_function_with_args() {
-    use crate::ast::{Variable, VariableRef, VariableType};
-
-    let class = Class::new("Main").add_subroutine(
-        Subroutine::new("main")
-            .return_type(crate::ast::ReturnType::Int)
-            .add_parameter(Variable::new("first", VariableType::Int))
-            .add_parameter(Variable::new("second", VariableType::Int))
-            .add_statement(Statement::return_expr(Expr::var(VariableRef::new(
-                "second",
-            )))),
-    );
-
-    let result = compile_class(&class).unwrap();
-
-    let expected: Vec<String> = r#"
-        function Main.main 0
-        push argument 1
-        return
-    "#
-    .trim()
-    .split('\n')
-    .map(|s| s.trim().to_owned())
-    .collect();
-
-    assert_eq!(result, expected);
-}
-
-#[test]
-fn compile_while_loop() {
-    /*
-    while (true) {
-        Output.printInt(2);
-    }
-    return;
-     */
-    let class = Class::new("Main").add_subroutine(
-        Subroutine::new("main")
-            .add_statement(
-                Statement::while_loop()
-                    .condition(Expr::true_c())
-                    .add_statement(
-                        Statement::do_statement()
-                            .set_type("Output")
-                            .name("printInt")
-                            .add_parameter(Expr::int(2))
-                            .as_statement(),
-                    )
-                    .as_statement(),
-            )
-            .add_statement(Statement::return_void()),
-    );
-
-    let result = compile_class(&class).unwrap();
-
-    let expected: Vec<String> = r#"
-            function Main.main 0
-                label main.while.0.condition
-                    push constant 1
-                    neg
-                if-goto main.while.0.while_body
-                    goto main.while.0.while_end
-                label main.while.0.while_body
-                    push constant 2
-                    call Output.printInt 1
-                    pop temp 0
-                    goto main.while.0.condition
-                label main.while.0.while_end
-            push constant 0
-            return
-        "#
-    .trim()
-    .split('\n')
-    .map(|s| s.trim().to_owned())
-    .collect();
-
-    assert_eq!(result, expected);
-}
-
-#[test]
-fn compile_if_statement() {
-    /*
-    if (true) {
-        Output.printInt(2);
-    } else {
-        Output.printInt(3);
-    }
-    return;
-     */
-    let class = Class::new("Main").add_subroutine(
-        Subroutine::new("main")
-            .add_statement(
-                Statement::if_statement()
-                    .condition(Expr::true_c())
-                    .add_if_statement(
-                        Statement::do_statement()
-                            .set_type("Output")
-                            .name("printInt")
-                            .add_parameter(Expr::int(2))
-                            .as_statement(),
-                    )
-                    .add_else_statement(
-                        Statement::do_statement()
-                            .set_type("Output")
-                            .name("printInt")
-                            .add_parameter(Expr::int(3))
-                            .as_statement(),
-                    )
-                    .as_statement(),
-            )
-            .add_statement(Statement::return_void()),
-    );
-
-    let result = compile_class(&class).unwrap();
-
-    let expected: Vec<String> = r#"
-            function Main.main 0
-                push constant 1
-                neg
-                if-goto main.if.0.if_body
-                    push constant 3
-                    call Output.printInt 1
-                    pop temp 0
-                    goto main.if.0.if_end
-                label main.if.0.if_body
-                    push constant 2
-                    call Output.printInt 1
-                    pop temp 0
-                label main.if.0.if_end
-            push constant 0
-            return
-        "#
-    .trim()
-    .split('\n')
-    .map(|s| s.trim().to_owned())
-    .collect();
-
-    assert_eq!(result, expected);
-}
-
-#[test]
-fn compile_let_with_call() {
-    use crate::ast::{Variable, VariableType};
-
-    // Test `let mask = Main.nextMask(mask);`
-    let class = Class::new("Main").add_subroutine(
-        Subroutine::new("main")
-            .return_type(crate::ast::ReturnType::Void)
-            .add_statement(
-                Statement::var()
-                    .add_var(Variable::new("mask", VariableType::Int))
-                    .as_statement(),
-            )
-            .add_statement(
-                Statement::let_statement()
-                    .id(VariableRef::new("mask"))
-                    .value(
-                        Expr::call()
-                            .set_type("Main")
-                            .name("nextMask")
-                            .add_parameter(Expr::var(VariableRef::new("mask")))
-                            .as_expr(),
-                    )
-                    .as_statement(),
-            )
-            .add_statement(Statement::return_void()),
-    );
-
-    let result = compile_class(&class).unwrap();
-
-    let expected: Vec<String> = r#"
-        function Main.main 1
-        push local 0
-        call Main.nextMask 1
-        pop local 0
-        push constant 0
-        return
-    "#
-    .trim()
-    .split('\n')
-    .map(|s| s.trim().to_owned())
-    .collect();
-
-    assert_eq!(result, expected);
-}
-
-#[allow(dead_code)]
-fn contains_commands(result: &Vec<String>, expected: &Vec<String>) -> bool {
-    result
-        .windows(expected.len())
-        .position(|window| window == expected)
-        .is_some()
 }

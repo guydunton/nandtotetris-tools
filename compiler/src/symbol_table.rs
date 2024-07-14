@@ -6,6 +6,17 @@ pub enum Scope {
     Local,
 }
 
+impl Scope {
+    pub fn as_segment(&self) -> String {
+        match self {
+            Scope::Field => "this".to_owned(),
+            Scope::Static => "static".to_owned(),
+            Scope::Argument => "argument".to_owned(),
+            Scope::Local => "local".to_owned(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct SymbolTableVariable {
     name: String,
@@ -107,6 +118,13 @@ impl SymbolTable {
             .count() as i32
     }
 
+    pub fn count_fields(&self) -> i32 {
+        self.vars
+            .iter()
+            .filter(|var| var.scope() == Scope::Field)
+            .count() as i32
+    }
+
     pub fn find_variable(&self, var_name: &str) -> Option<SymbolTableVariable> {
         self.vars
             .iter()
@@ -202,4 +220,15 @@ fn creating_a_scope_before_vars() {
 
     let second = table.find_variable("second").unwrap();
     assert_eq!(second.index(), 1);
+}
+
+#[test]
+fn count_field_vars() {
+    let mut table = SymbolTable::new();
+    table.add_field("field1", "int");
+    table.add_field("field2", "int");
+    table.create_scope();
+    table.add_argument("arg1", "int");
+
+    assert_eq!(table.count_fields(), 2);
 }

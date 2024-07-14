@@ -252,10 +252,10 @@ fn parse_variable(i: Span) -> IResult<Span, Vec<ClassVariable>, VerboseError<Spa
         s,
         identifiers
             .into_iter()
-            .map(|identifier| ClassVariable {
-                visibility,
-                var_type: var_type.clone(),
-                identifier,
+            .map(|identifier| {
+                ClassVariable::new(&identifier)
+                    .visibility(visibility)
+                    .var_type(var_type.clone())
             })
             .collect(),
     ))

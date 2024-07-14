@@ -97,7 +97,7 @@ fn parse_method_call(i: Span) -> IResult<Span, SubroutineCall, VerboseError<Span
         s,
         SubroutineCall::new()
             .name(&subroutine_name)
-            .set_type(&type_name)
+            .set_target(&type_name)
             .add_parameters(parameters),
     ))
 }

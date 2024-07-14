@@ -9,3 +9,6 @@ pub use expression::*;
 pub use statement::*;
 pub use subroutine::*;
 pub use variables::*;
+
+#[cfg(test)]
+mod compiler_tests;
