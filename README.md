@@ -17,7 +17,7 @@ A set of tools built for the [NandToTetris](https://www.nand2tetris.org/) course
   - [x] expressions that include method calls
 - Average - Read a value & output the average
   - [ ] arrays
-  - [ ] strings
+  - [x] strings
 - Pong - it's pong!
   - [ ] objects
   - [ ] static variables

@@ -10,6 +10,9 @@ use clap::{Arg, ArgAction, Command, ValueHint};
 use compiler::CompilationError;
 use parser::{parse_jack, FileInput};
 
+#[cfg(test)]
+mod compiler_tests;
+
 enum ErrorType {
     FileError(std::io::Error),
     ParsingError(String),

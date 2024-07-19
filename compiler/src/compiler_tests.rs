@@ -1,7 +1,7 @@
 use crate::{
     ast::{
         BinaryOp, Class, ClassVariable, Expr, Statement, Subroutine, SubroutineType, UnaryOp,
-        Variable, VariableRef,
+        Variable, VariableRef, VariableType,
     },
     compiler::compile_class,
 };
@@ -638,7 +638,7 @@ fn call_method_on_object() {
                 Statement::var()
                     .add_var(Variable::new(
                         "square",
-                        super::VariableType::ClassName("Square".to_owned()),
+                        VariableType::ClassName("Square".to_owned()),
                     ))
                     .as_statement(),
             )
@@ -884,4 +884,131 @@ fn test_chained_methods_using_do() {
         "Result: {:?}",
         result
     );
+}
+
+#[test]
+fn compile_array_test() {
+    /*
+       class Main {
+           function void main() {
+               do Output.printString("abc");
+           }
+       }
+    */
+    let class = Class::new("Main").add_subroutine(
+        Subroutine::new("main")
+            .add_statement(
+                Statement::do_statement()
+                    .set_target("Output")
+                    .name("printString")
+                    .add_parameter(Expr::string("abc"))
+                    .as_statement(),
+            )
+            .add_statement(Statement::return_void()),
+    );
+
+    let result = compile_class(&class).unwrap();
+
+    let expected: Vec<String> = r#"
+        function Main.main 0
+        push constant 3
+        call String.new 1
+        push constant 97
+        call String.appendChar 2
+        push constant 98
+        call String.appendChar 2
+        push constant 99
+        call String.appendChar 2
+        call Output.printString 1
+        pop temp 0
+        push constant 0
+        return
+    "#
+    .trim()
+    .split('\n')
+    .map(|s| s.trim().to_owned())
+    .collect();
+
+    assert_eq!(result, expected);
+}
+
+#[test]
+fn test_array_values() {
+    /*
+       class Main {
+           function void main() {
+               var Array a;
+               let a = Array.new(5);
+               let a[2] = 3;
+               do Output.printInt(a[2]);
+               return;
+           }
+       }
+    */
+    let class = Class::new("Main").add_subroutine(
+        Subroutine::new("main")
+            .add_statement(
+                Statement::var()
+                    .add_var(Variable::new("a", VariableType::Array))
+                    .as_statement(),
+            )
+            .add_statement(
+                Statement::let_statement()
+                    .id(VariableRef::new("a"))
+                    .value(
+                        Expr::call()
+                            .set_target("Array")
+                            .name("new")
+                            .add_parameter(Expr::int(5))
+                            .as_expr(),
+                    )
+                    .as_statement(),
+            )
+            .add_statement(
+                Statement::let_statement()
+                    .id(VariableRef::new_with_index("a", Expr::int(2)))
+                    .value(Expr::int(3))
+                    .as_statement(),
+            )
+            .add_statement(
+                Statement::do_statement()
+                    .set_target("Output")
+                    .name("printInt")
+                    .add_parameter(Expr::var(VariableRef::new_with_index("a", Expr::int(2))))
+                    .as_statement(),
+            )
+            .add_statement(Statement::return_void()),
+    );
+
+    let result = compile_class(&class).unwrap();
+
+    let expected: Vec<String> = r#"
+        function Main.main 1
+        push constant 5
+        call Array.new 1
+        pop local 0
+        push local 0
+        push constant 2
+        add
+        push constant 3
+        pop temp 0
+        pop pointer 1
+        push temp 0
+        pop that 0
+        push local 0
+        push constant 2
+        add
+        pop pointer 1
+        push that 0
+        call Output.printInt 1
+        pop temp 0
+        push constant 0
+        return
+    "#
+    .trim()
+    .split('\n')
+    .map(|s| s.trim().to_owned())
+    .collect();
+
+    assert_eq!(result, expected);
 }

@@ -173,14 +173,7 @@ fn compile_statement(
 ) -> Result<(), CompilationError> {
     match statement {
         Statement::Let(details) => {
-            // Put the expression into the stack first
-            compile_expression(output, details.get_expression(), context)?;
-
-            if details.identifier.get_index().is_some() {
-                todo!();
-            }
-
-            // Add the push to the correct variable
+            // Find the correct variable
             let variable = context
                 .symbol_table()
                 .find_variable(details.identifier.get_name())
@@ -195,7 +188,27 @@ fn compile_statement(
                 crate::symbol_table::Scope::Local => "local",
             };
 
-            output.push(format!("pop {} {}", scope, variable.index()));
+            let variable_index = variable.index();
+
+            // Prepare to store in an Array if appropriate
+            if let Some(index) = details.identifier.get_index() {
+                output.push(format!("push {} {}", scope, variable_index));
+                compile_expression(output, index, context)?;
+                output.push("add".to_owned());
+            }
+
+            // Put the expression into the stack
+            compile_expression(output, details.get_expression(), context)?;
+
+            // If an array we need to store the expression result to setup the array access
+            if details.identifier.get_index().is_some() {
+                output.push("pop temp 0".to_owned());
+                output.push("pop pointer 1".to_owned());
+                output.push("push temp 0".to_owned());
+                output.push("pop that 0".to_owned());
+            } else {
+                output.push(format!("pop {} {}", scope, variable_index));
+            }
         }
         Statement::While(details) => {
             // Create a name for the while for labels
@@ -316,7 +329,14 @@ fn compile_expression(
 ) -> Result<(), CompilationError> {
     match expr {
         Expr::Constant(Constant::Int(num_val)) => output.push(format!("push constant {}", num_val)),
-        Expr::Constant(Constant::String(_)) => todo!(),
+        Expr::Constant(Constant::String(text)) => {
+            output.push(format!("push constant {}", text.len()));
+            output.push("call String.new 1".to_owned());
+            for char in text.chars() {
+                output.push(format!("push constant {}", char as u8));
+                output.push("call String.appendChar 2".to_owned());
+            }
+        }
         Expr::Constant(Constant::Keyword(keyword)) => match keyword {
             crate::ast::KeywordConstant::True => {
                 output.push("push constant 1".to_owned());
@@ -327,10 +347,6 @@ fn compile_expression(
             crate::ast::KeywordConstant::This => output.push("push pointer 0".to_owned()),
         },
         Expr::VarRef(var) => {
-            if var.get_index().is_some() {
-                todo!();
-            }
-
             let variable = context.symbol_table().find_variable(var.get_name()).ok_or(
                 CompilationError::MissingVariable {
                     var_name: var.get_name().to_owned(),
@@ -344,7 +360,17 @@ fn compile_expression(
                 crate::symbol_table::Scope::Local => "local",
             };
 
-            output.push(format!("push {} {}", scope, variable.index()));
+            let variable_index = variable.index();
+
+            if let Some(index) = var.get_index() {
+                output.push(format!("push {} {}", scope, variable_index));
+                compile_expression(output, index, context)?;
+                output.push("add".to_owned());
+                output.push("pop pointer 1".to_owned());
+                output.push("push that 0".to_owned());
+            } else {
+                output.push(format!("push {} {}", scope, variable_index));
+            }
         }
         Expr::UnaryExpr(op, expr) => {
             compile_expression(output, expr, context)?;
