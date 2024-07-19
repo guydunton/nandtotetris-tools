@@ -1012,3 +1012,73 @@ fn test_array_values() {
 
     assert_eq!(result, expected);
 }
+
+#[test]
+fn test_array_to_array_equality() {
+    /*
+       class Main {
+           function void main() {
+               var Array a;
+               let a = Array.new(5);
+               let a[2] = a[3];
+               return;
+           }
+       }
+    */
+    let class = Class::new("Main").add_subroutine(
+        Subroutine::new("main")
+            .add_statement(
+                Statement::var()
+                    .add_var(Variable::new("a", VariableType::Array))
+                    .as_statement(),
+            )
+            .add_statement(
+                Statement::let_statement()
+                    .id(VariableRef::new("a"))
+                    .value(
+                        Expr::call()
+                            .set_target("Array")
+                            .name("new")
+                            .add_parameter(Expr::int(5))
+                            .as_expr(),
+                    )
+                    .as_statement(),
+            )
+            .add_statement(
+                Statement::let_statement()
+                    .id(VariableRef::new_with_index("a", Expr::int(2)))
+                    .value(Expr::var(VariableRef::new_with_index("a", Expr::int(3))))
+                    .as_statement(),
+            )
+            .add_statement(Statement::return_void()),
+    );
+
+    let result = compile_class(&class).unwrap();
+
+    let expected: Vec<String> = r#"
+        function Main.main 1
+        push constant 5
+        call Array.new 1
+        pop local 0
+        push local 0
+        push constant 2
+        add
+        push local 0
+        push constant 3
+        add
+        pop pointer 1
+        push that 0
+        pop temp 0
+        pop pointer 1
+        push temp 0
+        pop that 0
+        push constant 0
+        return
+    "#
+    .trim()
+    .split('\n')
+    .map(|s| s.trim().to_owned())
+    .collect();
+
+    assert_eq!(result, expected);
+}
