@@ -241,10 +241,6 @@ fn compile_statement(
             output.push(format!("label {}.while_end", while_label));
         }
         Statement::Do(call) => {
-            for parameter in call.get_parameters() {
-                compile_expression(output, parameter, context)?;
-            }
-
             let mut param_count = call.get_parameters().len();
             let mut call_text = call.name_as_string();
 
@@ -271,6 +267,10 @@ fn compile_statement(
                     call_text = format!("{}.{}", context.class_name, call.get_name());
                 }
             };
+
+            for parameter in call.get_parameters() {
+                compile_expression(output, parameter, context)?;
+            }
 
             output.push(format!("call {} {}", call_text, param_count,));
 

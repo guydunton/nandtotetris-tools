@@ -19,7 +19,7 @@ A set of tools built for the [NandToTetris](https://www.nand2tetris.org/) course
   - [x] arrays
   - [x] strings
 - Pong - it's pong!
-  - [ ] objects
-  - [ ] static variables
+  - [x] objects
+  - [x] static variables
 - ComplexArrays
   - [ ] Test complex array indices

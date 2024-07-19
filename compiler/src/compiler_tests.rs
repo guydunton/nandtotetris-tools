@@ -1082,3 +1082,115 @@ fn test_array_to_array_equality() {
 
     assert_eq!(result, expected);
 }
+
+#[test]
+fn test_static_class_variables() {
+    /*
+    class Counter {
+        static int counter;
+        static int secondCounter;
+
+        function void initialize() {
+            let counter = 0;
+            let secondCounter = 0;
+            return;
+        }
+    }
+     */
+    let class = Class::new("Counter")
+        .add_variable(
+            ClassVariable::new("counter")
+                .var_type(VariableType::Int)
+                .visibility(crate::ast::ClassVariableVisibility::Static),
+        )
+        .add_variable(
+            ClassVariable::new("secondCounter")
+                .var_type(VariableType::Int)
+                .visibility(crate::ast::ClassVariableVisibility::Static),
+        )
+        .add_subroutine(
+            Subroutine::new("initialize")
+                .add_statement(
+                    Statement::let_statement()
+                        .id(VariableRef::new("counter"))
+                        .value(Expr::int(0))
+                        .as_statement(),
+                )
+                .add_statement(
+                    Statement::let_statement()
+                        .id(VariableRef::new("secondCounter"))
+                        .value(Expr::int(0))
+                        .as_statement(),
+                )
+                .add_statement(Statement::return_void()),
+        );
+
+    let result = compile_class(&class).unwrap();
+
+    let expected: Vec<String> = r#"
+        function Counter.initialize 0
+        push constant 0
+        pop static 0
+        push constant 0
+        pop static 1
+        push constant 0
+        return
+    "#
+    .trim()
+    .split('\n')
+    .map(|s| s.trim().to_owned())
+    .collect();
+
+    assert_eq!(result, expected);
+}
+
+#[test]
+fn test_class_method_arguments() {
+    let class = Class::new("Main").add_subroutine(
+        Subroutine::new("main")
+            .add_statement(
+                Statement::var()
+                    .add_var(Variable::new(
+                        "ball",
+                        VariableType::ClassName("Ball".to_owned()),
+                    ))
+                    .as_statement(),
+            )
+            .add_statement(
+                Statement::let_statement()
+                    .id(VariableRef::new("ball"))
+                    .value(Expr::call().name("new").set_target("Ball").as_expr())
+                    .as_statement(),
+            )
+            .add_statement(
+                Statement::do_statement()
+                    .set_target("ball")
+                    .name("move")
+                    .add_parameter(Expr::int(300))
+                    .add_parameter(Expr::int(200))
+                    .as_statement(),
+            )
+            .add_statement(Statement::return_void()),
+    );
+
+    let result = compile_class(&class).unwrap();
+
+    let expected: Vec<String> = r#"
+        function Main.main 1
+        call Ball.new 0
+        pop local 0
+        push local 0
+        push constant 300
+        push constant 200
+        call Ball.move 3
+        pop temp 0
+        push constant 0
+        return
+    "#
+    .trim()
+    .split('\n')
+    .map(|s| s.trim().to_owned())
+    .collect();
+
+    assert_eq!(result, expected);
+}
